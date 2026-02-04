@@ -123,8 +123,9 @@ static const uint8_t RELAY_PINS[NUM_RELAYS] = {
 #define KEYPAD_COLS             4
 
 // Piny wierszy (OUTPUT podczas skanowania)
-#define PIN_KEYPAD_ROW1         1       // GPIO1  - Wiersz 1
-#define PIN_KEYPAD_ROW2         2       // GPIO2  - Wiersz 2
+// UWAGA: GPIO 43, 44 są wolne gdy Serial używa USB CDC (ARDUINO_USB_CDC_ON_BOOT=1)
+#define PIN_KEYPAD_ROW1         43      // GPIO43 - Wiersz 1 (wolny - UART0 TX nieużywany)
+#define PIN_KEYPAD_ROW2         44      // GPIO44 - Wiersz 2 (wolny - UART0 RX nieużywany)
 #define PIN_KEYPAD_ROW3         14      // GPIO14 - Wiersz 3
 #define PIN_KEYPAD_ROW4         38      // GPIO38 - Wiersz 4
 
@@ -167,8 +168,6 @@ static const uint8_t KEYPAD_COL_PINS[KEYPAD_COLS] = {
  * ┌──────────┬────────────────────────────────────────────────────────────────┐
  * │   GPIO   │                        FUNKCJA                                 │
  * ├──────────┼────────────────────────────────────────────────────────────────┤
- * │    1     │ Klawiatura - Wiersz 1                                          │
- * │    2     │ Klawiatura - Wiersz 2                                          │
  * │    4     │ Enkoder - CLK (przerwanie)                                     │
  * │    5     │ Enkoder - DT (kierunek)                                        │
  * │    6     │ Enkoder - SW (przycisk)                                        │
@@ -190,14 +189,16 @@ static const uint8_t KEYPAD_COL_PINS[KEYPAD_COLS] = {
  * │   40     │ Klawiatura - Kolumna 2                                         │
  * │   41     │ Klawiatura - Kolumna 3                                         │
  * │   42     │ Klawiatura - Kolumna 4                                         │
+ * │   43     │ Klawiatura - Wiersz 1 (UART0 TX wolny przy USB CDC)            │
+ * │   44     │ Klawiatura - Wiersz 2 (UART0 RX wolny przy USB CDC)            │
  * │   47     │ Przekaźnik 6 (Pistolet 6)                                      │
  * │   48     │ Wolny (rezerwowy)                                              │
  * ├──────────┼────────────────────────────────────────────────────────────────┤
  * │  26-32   │ NIEDOSTĘPNE - Octal PSRAM                                      │
  * │  33-37   │ NIEDOSTĘPNE - Octal Flash                                      │
  * │  0,3,45,46│ STRAPPING - nie używać                                        │
- * │  19,20   │ USB - zarezerwowane                                            │
- * │  43,44   │ UART0 - Serial monitor                                         │
+ * │  19,20   │ USB D-/D+ - Serial przez USB CDC                               │
+ * │  1, 2    │ Wolne (rezerwowe)                                              │
  * └──────────┴────────────────────────────────────────────────────────────────┘
  */
 

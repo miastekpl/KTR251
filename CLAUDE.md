@@ -77,8 +77,6 @@ KTR251/
 
 | GPIO | Function | Module |
 |------|----------|--------|
-| 1 | KEYPAD_ROW1 | Keypad |
-| 2 | KEYPAD_ROW2 | Keypad |
 | 4 | ENCODER_CLK | Encoder |
 | 5 | ENCODER_DT | Encoder |
 | 6 | ENCODER_SW | Encoder (button) |
@@ -100,9 +98,11 @@ KTR251/
 | 40 | KEYPAD_COL2 | Keypad |
 | 41 | KEYPAD_COL3 | Keypad |
 | 42 | KEYPAD_COL4 | Keypad |
+| 43 | KEYPAD_ROW1 | Keypad (UART0 TX free with USB CDC) |
+| 44 | KEYPAD_ROW2 | Keypad (UART0 RX free with USB CDC) |
 | 47 | RELAY_6 | Relays (Gun 6) |
 
-**Free pins for expansion:** GPIO 48
+**Free pins for expansion:** GPIO 1, 2, 48
 
 ## Build & Run
 

@@ -57,7 +57,16 @@ void applyPattern(const PaintPattern* pattern);
 // =============================================================================
 
 void setup() {
+    // Opóźnienie startowe - kluczowe dla ESP32-S3 z USB CDC
+    delay(1000);
+
     Serial.begin(DEBUG_BAUD_RATE);
+
+    // Czekaj na Serial (USB CDC) max 3 sekundy
+    uint32_t startWait = millis();
+    while (!Serial && (millis() - startWait < 3000)) {
+        delay(10);
+    }
     delay(100);
 
     DEBUG_PRINTLN(F("\n========================================"));
