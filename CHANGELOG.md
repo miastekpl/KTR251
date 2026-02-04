@@ -7,6 +7,63 @@ projekt stosuje [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.1.0] - 2026-02-04
+
+### Dodano
+
+#### Moduł wzorców malowania (patterns_module)
+- **15 predefiniowanych wzorców** zgodnych z polskimi przepisami drogowymi:
+  - P-1a do P-1e: Linie przerywane (różne proporcje linia/przerwa)
+  - P-2a, P-2b: Linie ciągłe (wąska 12cm, szeroka 24cm)
+  - P-3a, P-3b: Linie przekraczalne
+  - P-4: Podwójna linia ciągła
+  - P-6: Linia ostrzegawcza
+  - P-7a do P-7d: Linie krawędziowe
+- Natychmiastowa zmiana wzorca podczas malowania (on-the-fly)
+- Callback powiadamiający o zmianie wzorca
+
+#### Moduł klawiatury matrycowej (keypad_module)
+- Obsługa klawiatury membranowej **4x4 (16 przycisków)**
+- 15 przycisków dedykowanych wzorcom (P-1a do P-7d)
+- 1 przycisk START/STOP
+- Skanowanie matrycy z debouncingiem
+- Callback dla naciśnięcia klawisza
+
+#### Konfiguracja pinów (pins_config.h)
+- **Nowy plik** z dedykowaną konfiguracją wszystkich pinów GPIO
+- Szczegółowa dokumentacja ograniczeń ESP32-S3 N16R8
+- Wizualna mapa pinów z funkcjami
+- Tablice pinów dla pętli (przekaźniki, klawiatura)
+
+#### Interfejs WWW
+- **15 przycisków wyboru wzorców** w panelu webowym
+- Podświetlenie aktywnego wzorca
+- Wyświetlanie nazwy aktywnego wzorca
+- Przyciski nawigacji (Poprzedni/Następny wzorzec)
+
+### Zmieniono
+- `config.h` - teraz dołącza `pins_config.h` dla konfiguracji pinów
+- `main.cpp` - integracja modułów patterns i keypad
+- `webserver_module` - rozbudowa o obsługę wzorców
+- Wersja firmware zaktualizowana do 1.1.0
+
+### Przypisanie pinów (v1.1.0)
+| GPIO | Funkcja              |
+|------|----------------------|
+| 1    | Klawiatura - Wiersz 1|
+| 2    | Klawiatura - Wiersz 2|
+| 4    | Enkoder CLK          |
+| 5    | Enkoder DT           |
+| 6    | Enkoder SW           |
+| 7-13 | TFT ILI9341 (SPI)    |
+| 14   | Klawiatura - Wiersz 3|
+| 15-18,21,47 | Przekaźniki 1-6|
+| 38   | Klawiatura - Wiersz 4|
+| 39-42| Klawiatura - Kolumny |
+| 48   | Wolny (rezerwowy)    |
+
+---
+
 ## [1.0.0] - 2026-02-04
 
 ### Dodano

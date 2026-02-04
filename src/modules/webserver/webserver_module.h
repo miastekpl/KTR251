@@ -1,14 +1,8 @@
 /**
  * @file webserver_module.h
- * @brief Moduł serwera WWW z WebSocket
- * @version 1.0.0
+ * @brief Moduł serwera WWW z WebSocket i obsługą wzorców
+ * @version 1.1.0
  * @date 2026-02-04
- *
- * Moduł odpowiada za:
- * - Uruchomienie punktu dostępowego WiFi
- * - Serwowanie interfejsu WWW
- * - Komunikację WebSocket dla aktualizacji w czasie rzeczywistym
- * - API REST do sterowania
  */
 
 #ifndef WEBSERVER_MODULE_H
@@ -25,7 +19,6 @@
 // TYPY CALLBACK
 // =============================================================================
 
-// Callback dla komend otrzymanych przez WebSocket
 typedef void (*CommandCallback)(const char* command, JsonDocument& params);
 
 // =============================================================================
@@ -52,67 +45,22 @@ struct WebServerData {
 
 class WebServerModule {
 public:
-    /**
-     * @brief Konstruktor
-     */
     WebServerModule();
-
-    /**
-     * @brief Destruktor
-     */
     ~WebServerModule();
 
-    /**
-     * @brief Inicjalizacja serwera
-     * @return true jeśli sukces
-     */
     bool begin();
-
-    /**
-     * @brief Aktualizacja (wywoływać w loop)
-     */
     void update();
 
-    /**
-     * @brief Wysłanie danych do wszystkich klientów WebSocket
-     * @param data Dane do wysłania
-     */
     void broadcastData(const WebServerData& data);
-
-    /**
-     * @brief Wysłanie wiadomości tekstowej
-     * @param message Wiadomość
-     */
     void broadcastMessage(const char* message);
 
-    /**
-     * @brief Pobranie adresu IP
-     * @return Adres IP jako String
-     */
     String getIPAddress() const;
-
-    /**
-     * @brief Sprawdzenie czy WiFi jest połączone
-     * @return true jeśli połączono
-     */
     bool isConnected() const;
-
-    /**
-     * @brief Liczba połączonych klientów
-     * @return Liczba klientów WebSocket
-     */
     uint8_t getClientCount() const;
 
-    /**
-     * @brief Ustawienie callbacka dla komend
-     * @param callback Funkcja callback
-     */
     void setCommandCallback(CommandCallback callback);
-
-    /**
-     * @brief Ustawienie danych o wzorze (do wyświetlania)
-     */
-    void setPatternData(uint32_t lineLength, uint32_t gapLength);
+    void setPatternData(uint32_t lineLength, uint32_t gapLength,
+                        uint8_t patternIndex, const char* patternName);
 
 private:
     AsyncWebServer* _server;
@@ -124,45 +72,17 @@ private:
 
     uint32_t _patternLineLength;
     uint32_t _patternGapLength;
+    uint8_t _activePatternIndex;
+    char _activePatternName[16];
 
-    /**
-     * @brief Inicjalizacja WiFi AP
-     */
     bool initWiFi();
-
-    /**
-     * @brief Konfiguracja routingu HTTP
-     */
     void setupRoutes();
-
-    /**
-     * @brief Obsługa zdarzeń WebSocket
-     */
-    void onWebSocketEvent(AsyncWebSocket* server,
-                          AsyncWebSocketClient* client,
-                          AwsEventType type,
-                          void* arg,
-                          uint8_t* data,
-                          size_t len);
-
-    /**
-     * @brief Przetwarzanie komendy JSON
-     */
+    void onWebSocketEvent(AsyncWebSocket* server, AsyncWebSocketClient* client,
+                          AwsEventType type, void* arg, uint8_t* data, size_t len);
     void processCommand(const char* json, AsyncWebSocketClient* client);
 
-    /**
-     * @brief Generowanie strony HTML
-     */
     String generateHTML();
-
-    /**
-     * @brief Generowanie CSS
-     */
     String generateCSS();
-
-    /**
-     * @brief Generowanie JavaScript
-     */
     String generateJS();
 };
 

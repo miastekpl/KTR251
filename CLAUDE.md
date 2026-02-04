@@ -5,7 +5,7 @@
 ## Project Overview
 
 **Repository:** KTR251 - Road Marking Controller
-**Status:** Production Ready v1.0.0
+**Status:** Production Ready v1.1.0
 **Platform:** ESP32-S3 N16R8
 **Language:** C++ (Arduino Framework)
 **Last Updated:** 2026-02-04
@@ -28,11 +28,18 @@ KTR251/
 │       ├── display/                # Display module (ILI9341 TFT)
 │       │   ├── display_module.h
 │       │   └── display_module.cpp
-│       └── webserver/              # WebServer module (WiFi AP + WWW)
-│           ├── webserver_module.h
-│           └── webserver_module.cpp
+│       ├── webserver/              # WebServer module (WiFi AP + WWW)
+│       │   ├── webserver_module.h
+│       │   └── webserver_module.cpp
+│       ├── patterns/               # Patterns module (P-1 to P-7)
+│       │   ├── patterns_module.h
+│       │   └── patterns_module.cpp
+│       └── keypad/                 # Keypad module (4x4 matrix)
+│           ├── keypad_module.h
+│           └── keypad_module.cpp
 ├── include/
-│   ├── config.h                    # System configuration & pin definitions
+│   ├── config.h                    # System configuration
+│   ├── pins_config.h               # GPIO pin definitions
 │   └── User_Setup.h                # TFT_eSPI library configuration
 ├── docs/
 │   ├── SCHEMATIC.md                # Electrical schematics
@@ -52,6 +59,8 @@ KTR251/
 | **relays** | Paint gun control (6 channels) | `relay_module.h/cpp` |
 | **display** | TFT screen with real-time data | `display_module.h/cpp` |
 | **webserver** | WiFi AP + web control panel | `webserver_module.h/cpp` |
+| **patterns** | 15 predefined painting patterns (P-1 to P-7) | `patterns_module.h/cpp` |
+| **keypad** | 4x4 matrix keypad for pattern selection | `keypad_module.h/cpp` |
 
 ## Hardware Configuration
 
@@ -68,6 +77,8 @@ KTR251/
 
 | GPIO | Function | Module |
 |------|----------|--------|
+| 1 | KEYPAD_ROW1 | Keypad |
+| 2 | KEYPAD_ROW2 | Keypad |
 | 4 | ENCODER_CLK | Encoder |
 | 5 | ENCODER_DT | Encoder |
 | 6 | ENCODER_SW | Encoder (button) |
@@ -78,14 +89,20 @@ KTR251/
 | 11 | TFT_MOSI | Display (SPI) |
 | 12 | TFT_SCLK | Display (SPI) |
 | 13 | TFT_MISO | Display (SPI) |
+| 14 | KEYPAD_ROW3 | Keypad |
 | 15 | RELAY_1 | Relays (Gun 1) |
 | 16 | RELAY_2 | Relays (Gun 2) |
 | 17 | RELAY_3 | Relays (Gun 3) |
 | 18 | RELAY_4 | Relays (Gun 4) |
 | 21 | RELAY_5 | Relays (Gun 5) |
+| 38 | KEYPAD_ROW4 | Keypad |
+| 39 | KEYPAD_COL1 | Keypad |
+| 40 | KEYPAD_COL2 | Keypad |
+| 41 | KEYPAD_COL3 | Keypad |
+| 42 | KEYPAD_COL4 | Keypad |
 | 47 | RELAY_6 | Relays (Gun 6) |
 
-**Free pins for expansion:** GPIO 1, 2, 14, 38, 39, 40, 41, 42, 48
+**Free pins for expansion:** GPIO 48
 
 ## Build & Run
 
@@ -174,6 +191,9 @@ ModuleName ModuleInstance;
 - **Encoder:** Uses hardware interrupts on GPIO 4
 - **Display:** Requires `User_Setup.h` copied to TFT_eSPI library folder
 - **WebSocket path:** `/ws`
+- **Patterns:** 15 predefined patterns (P-1a to P-7d) stored in PROGMEM
+- **Keypad:** 4x4 matrix scanned at 50Hz with debouncing
+- **Pin config:** All GPIO definitions in `pins_config.h`
 
 ## AI Assistant Instructions
 
@@ -208,5 +228,5 @@ Example: `feat: Add temperature sensor support`
 
 ---
 
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Last reviewed:** 2026-02-04

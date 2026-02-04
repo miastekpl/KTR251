@@ -1,16 +1,18 @@
 /**
  * @file main.cpp
- * @brief Główny plik programu KTR251 - Komputer do malowania pasów drogowych
- * @version 1.0.0
+ * @brief Główny plik programu KTR251 v1.1.0 - Komputer do malowania pasów drogowych
+ * @version 1.1.0
  * @date 2026-02-04
  *
- * System sterowania malowaniem pasów drogowych
- * - Enkoder KY-040 do pomiaru dystansu
- * - 6 przekaźników (pistoletów)
- * - Wyświetlacz ILI9341
- * - Serwer WWW z WebSocket
- *
  * Platforma: ESP32-S3 N16R8
+ *
+ * Moduły:
+ * - encoder_module: Pomiar dystansu i prędkości
+ * - relay_module: Sterowanie 6 pistoletami
+ * - display_module: Wyświetlacz TFT ILI9341
+ * - webserver_module: WiFi AP + panel WWW
+ * - patterns_module: Predefiniowane wzorce malowania (P-1 do P-7)
+ * - keypad_module: Klawiatura matrycowa 4x4 do wyboru wzorców
  */
 
 #include <Arduino.h>
@@ -21,17 +23,18 @@
 #include "modules/relays/relay_module.h"
 #include "modules/display/display_module.h"
 #include "modules/webserver/webserver_module.h"
+#include "modules/patterns/patterns_module.h"
+#include "modules/keypad/keypad_module.h"
 
 // =============================================================================
 // ZMIENNE GLOBALNE
 // =============================================================================
 
-// Timery dla zadań
 uint32_t lastEncoderUpdate = 0;
 uint32_t lastDisplayUpdate = 0;
 uint32_t lastWebUpdate = 0;
+uint32_t lastKeypadUpdate = 0;
 
-// Flagi stanu
 bool systemInitialized = false;
 
 // =============================================================================
@@ -42,15 +45,18 @@ void initializeSystem();
 void updateEncoder();
 void updateDisplay();
 void updateWeb();
+void updateKeypad();
 void handleWebCommand(const char* command, JsonDocument& params);
 void handleEncoderButton();
+void handleKeypadPress(KeyCode key);
+void onPatternChange(PatternId newPattern, const PaintPattern* pattern);
+void applyPattern(const PaintPattern* pattern);
 
 // =============================================================================
 // SETUP
 // =============================================================================
 
 void setup() {
-    // Inicjalizacja portu szeregowego
     Serial.begin(DEBUG_BAUD_RATE);
     delay(100);
 
@@ -60,16 +66,13 @@ void setup() {
     DEBUG_PRINTF("   Data: %s\n", FIRMWARE_DATE);
     DEBUG_PRINTLN(F("========================================\n"));
 
-    // Informacje o ESP32-S3
-    DEBUG_PRINTF("[SYSTEM] Chip: %s Rev %d\n",
-                 ESP.getChipModel(), ESP.getChipRevision());
+    DEBUG_PRINTF("[SYSTEM] Chip: %s Rev %d\n", ESP.getChipModel(), ESP.getChipRevision());
     DEBUG_PRINTF("[SYSTEM] CPU: %d MHz\n", ESP.getCpuFreqMHz());
     DEBUG_PRINTF("[SYSTEM] Flash: %d MB\n", ESP.getFlashChipSize() / (1024 * 1024));
     DEBUG_PRINTF("[SYSTEM] PSRAM: %d KB\n", ESP.getPsramSize() / 1024);
     DEBUG_PRINTF("[SYSTEM] Free heap: %d KB\n", ESP.getFreeHeap() / 1024);
     DEBUG_PRINTLN();
 
-    // Inicjalizacja systemu
     initializeSystem();
 }
 
@@ -85,19 +88,25 @@ void loop() {
 
     uint32_t currentTime = millis();
 
-    // Aktualizacja enkodera (wysoka częstotliwość)
+    // Aktualizacja enkodera (10ms)
     if (currentTime - lastEncoderUpdate >= ENCODER_PROCESS_INTERVAL) {
         updateEncoder();
         lastEncoderUpdate = currentTime;
     }
 
-    // Aktualizacja wyświetlacza
+    // Aktualizacja klawiatury (20ms)
+    if (currentTime - lastKeypadUpdate >= KEYPAD_SCAN_INTERVAL) {
+        updateKeypad();
+        lastKeypadUpdate = currentTime;
+    }
+
+    // Aktualizacja wyświetlacza (100ms)
     if (currentTime - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
         updateDisplay();
         lastDisplayUpdate = currentTime;
     }
 
-    // Aktualizacja WebSocket
+    // Aktualizacja WebSocket (200ms)
     if (currentTime - lastWebUpdate >= WEB_UPDATE_INTERVAL) {
         updateWeb();
         lastWebUpdate = currentTime;
@@ -109,7 +118,6 @@ void loop() {
     // Aktualizacja serwera WWW
     WebServer.update();
 
-    // Krótka pauza dla stabilności
     yield();
 }
 
@@ -120,44 +128,57 @@ void loop() {
 void initializeSystem() {
     DEBUG_PRINTLN(F("[SYSTEM] Inicjalizacja modulow..."));
 
-    // 1. Wyświetlacz (pokazuje splash screen)
+    // 1. Wzorce malowania
+    if (!Patterns.begin()) {
+        DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac wzorcow!"));
+        return;
+    }
+    Patterns.setOnPatternChange(onPatternChange);
+
+    // 2. Wyświetlacz
     if (!Display.begin()) {
         DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac wyswietlacza!"));
         return;
     }
 
-    // 2. Enkoder
+    // 3. Enkoder
     if (!Encoder.begin()) {
         DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac enkodera!"));
         Display.showMessage("BLAD", "Enkoder", COLOR_ERROR);
         return;
     }
 
-    // 3. Przekaźniki
+    // 4. Przekaźniki
     if (!Relays.begin()) {
         DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac przekaznikow!"));
         Display.showMessage("BLAD", "Przekazniki", COLOR_ERROR);
         return;
     }
 
-    // 4. Serwer WWW
+    // 5. Klawiatura
+    if (!Keypad.begin()) {
+        DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac klawiatury!"));
+        Display.showMessage("BLAD", "Klawiatura", COLOR_ERROR);
+        return;
+    }
+    Keypad.setOnKeyPress(handleKeypadPress);
+
+    // 6. Serwer WWW
     if (!WebServer.begin()) {
         DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac serwera WWW!"));
         Display.showMessage("BLAD", "WiFi/WWW", COLOR_ERROR);
         return;
     }
-
-    // Ustawienie callbacka dla komend WWW
     WebServer.setCommandCallback(handleWebCommand);
 
-    // Aktualizacja wyświetlacza z adresem IP
+    // Zastosuj domyślny wzorzec (P-1a)
+    applyPattern(Patterns.getActivePattern());
+
+    // Aktualizacja wyświetlacza
     Display.setIPAddress(WebServer.getIPAddress().c_str());
     Display.setStatusText("Gotowy");
-
-    // Odśwież ekran główny
     Display.refresh();
 
-    // System zainicjalizowany
     systemInitialized = true;
 
     DEBUG_PRINTLN(F("\n[SYSTEM] ============================"));
@@ -165,6 +186,7 @@ void initializeSystem() {
     DEBUG_PRINTF("[SYSTEM] WiFi AP: %s\n", WIFI_AP_SSID);
     DEBUG_PRINTF("[SYSTEM] Haslo: %s\n", WIFI_AP_PASSWORD);
     DEBUG_PRINTF("[SYSTEM] WWW: http://%s\n", WebServer.getIPAddress().c_str());
+    DEBUG_PRINTF("[SYSTEM] Aktywny wzorzec: %s\n", Patterns.getActivePatternName());
     DEBUG_PRINTLN(F("[SYSTEM] ============================\n"));
 }
 
@@ -173,11 +195,92 @@ void initializeSystem() {
 // =============================================================================
 
 void updateEncoder() {
-    // Aktualizacja modułu enkodera
     Encoder.update();
-
-    // Aktualizacja modułu przekaźników z aktualnym dystansem
     Relays.update(Encoder.getDistanceMM());
+}
+
+// =============================================================================
+// AKTUALIZACJA KLAWIATURY
+// =============================================================================
+
+void updateKeypad() {
+    Keypad.update();
+}
+
+// =============================================================================
+// OBSŁUGA NACIŚNIĘCIA KLAWISZA
+// =============================================================================
+
+void handleKeypadPress(KeyCode key) {
+    DEBUG_PRINTF("[KEYPAD] Klawisz: %d\n", (int)key);
+
+    if (Keypad.isStartKey(key)) {
+        // Przycisk START/STOP
+        if (Relays.isRunning()) {
+            Relays.stop();
+            Display.setStatusText("STOP");
+        } else {
+            // Ustaw tryb automatyczny i start
+            if (Patterns.isActiveSolid()) {
+                Relays.setMode(PaintingMode::AUTO_SOLID);
+            } else {
+                Relays.setMode(PaintingMode::AUTO_LINE);
+            }
+            Relays.start();
+            Display.setStatusText("MALOWANIE");
+        }
+    } else {
+        // Przycisk wzorca (0-14)
+        uint8_t patternIndex = Keypad.keyToPatternIndex(key);
+        if (patternIndex < NUM_PATTERNS) {
+            Patterns.setPatternByIndex(patternIndex);
+            // Wzorzec zostanie zastosowany przez callback onPatternChange
+        }
+    }
+}
+
+// =============================================================================
+// CALLBACK ZMIANY WZORCA
+// =============================================================================
+
+void onPatternChange(PatternId newPattern, const PaintPattern* pattern) {
+    DEBUG_PRINTF("[PATTERN] Zmiana wzorca na: %s\n", pattern->name);
+    applyPattern(pattern);
+}
+
+// =============================================================================
+// ZASTOSOWANIE WZORCA
+// =============================================================================
+
+void applyPattern(const PaintPattern* pattern) {
+    if (!pattern) return;
+
+    // Ustaw parametry w module przekaźników
+    Relays.setLineLength(pattern->lineLengthMM);
+    Relays.setGapLength(pattern->gapLengthMM);
+
+    // Ustaw tryb w zależności od typu linii
+    if (pattern->lineType == LineType::SOLID ||
+        pattern->lineType == LineType::DOUBLE_SOLID) {
+        Relays.setMode(PaintingMode::AUTO_SOLID);
+    } else {
+        Relays.setMode(PaintingMode::AUTO_LINE);
+    }
+
+    // Aktualizuj WebServer
+    WebServer.setPatternData(
+        pattern->lineLengthMM,
+        pattern->gapLengthMM,
+        Patterns.getActivePatternIndex(),
+        pattern->name
+    );
+
+    DEBUG_PRINTF("[PATTERN] Zastosowano: %s (L=%dmm, G=%dmm, W=%dmm)\n",
+        pattern->name,
+        pattern->lineLengthMM,
+        pattern->gapLengthMM,
+        pattern->lineWidthMM
+    );
 }
 
 // =============================================================================
@@ -185,7 +288,6 @@ void updateEncoder() {
 // =============================================================================
 
 void updateDisplay() {
-    // Przygotuj dane dla wyświetlacza
     DisplayData displayData;
     displayData.distanceM = Encoder.getDistanceM();
     displayData.speedKMH = Encoder.getSpeedKMH();
@@ -196,24 +298,26 @@ void updateDisplay() {
     displayData.activePistols = Relays.getActiveRelayMask();
     displayData.mode = (uint8_t)Relays.getMode();
 
-    // Status tekstowy
+    // Status tekstowy z nazwą wzorca
     if (Relays.isRunning()) {
         if (Relays.getData().isPaused) {
-            strcpy(displayData.statusText, "PAUZA");
+            snprintf(displayData.statusText, sizeof(displayData.statusText),
+                     "PAUZA [%s]", Patterns.getActivePatternName());
         } else if (Relays.getData().state == PaintingState::PAINTING) {
-            strcpy(displayData.statusText, "MALOWANIE");
+            snprintf(displayData.statusText, sizeof(displayData.statusText),
+                     "%s", Patterns.getActivePatternName());
         } else {
-            strcpy(displayData.statusText, "PRZERWA");
+            snprintf(displayData.statusText, sizeof(displayData.statusText),
+                     "PRZERWA [%s]", Patterns.getActivePatternName());
         }
     } else {
-        strcpy(displayData.statusText, "Gotowy");
+        snprintf(displayData.statusText, sizeof(displayData.statusText),
+                 "%s", Patterns.getActivePatternName());
     }
 
-    // IP
     strncpy(displayData.ipAddress, WebServer.getIPAddress().c_str(),
             sizeof(displayData.ipAddress) - 1);
 
-    // Aktualizuj wyświetlacz
     Display.setData(displayData);
     Display.update();
 }
@@ -223,7 +327,6 @@ void updateDisplay() {
 // =============================================================================
 
 void updateWeb() {
-    // Przygotuj dane dla WebSocket
     WebServerData webData;
     webData.distanceM = Encoder.getDistanceM();
     webData.speedKMH = Encoder.getSpeedKMH();
@@ -234,13 +337,9 @@ void updateWeb() {
     webData.activePistols = Relays.getActiveRelayMask();
     webData.mode = (uint8_t)Relays.getMode();
     webData.pulseCount = Encoder.getPulseCount();
-    webData.lineLength = Relays.getPattern().lineLengthMM;
-    webData.gapLength = Relays.getPattern().gapLengthMM;
+    webData.lineLength = Patterns.getActiveLineLength();
+    webData.gapLength = Patterns.getActiveGapLength();
 
-    // Aktualizuj dane wzoru w WebServer
-    WebServer.setPatternData(webData.lineLength, webData.gapLength);
-
-    // Wyślij do klientów
     WebServer.broadcastData(webData);
 }
 
@@ -249,15 +348,20 @@ void updateWeb() {
 // =============================================================================
 
 void handleWebCommand(const char* command, JsonDocument& params) {
-    DEBUG_PRINTF("[CMD] Otrzymano komende: %s\n", command);
+    DEBUG_PRINTF("[CMD] Komenda: %s\n", command);
 
     if (strcmp(command, "start") == 0) {
+        if (Patterns.isActiveSolid()) {
+            Relays.setMode(PaintingMode::AUTO_SOLID);
+        } else {
+            Relays.setMode(PaintingMode::AUTO_LINE);
+        }
         Relays.start();
         Display.setStatusText("MALOWANIE");
     }
     else if (strcmp(command, "stop") == 0) {
         Relays.stop();
-        Display.setStatusText("Gotowy");
+        Display.setStatusText("STOP");
     }
     else if (strcmp(command, "pause") == 0) {
         Relays.pause();
@@ -271,17 +375,17 @@ void handleWebCommand(const char* command, JsonDocument& params) {
         Encoder.resetDistance();
         Display.setStatusText("Reset");
     }
-    else if (strcmp(command, "setMode") == 0) {
-        int mode = params["mode"] | 0;
-        Relays.setMode((PaintingMode)mode);
-        DEBUG_PRINTF("[CMD] Tryb zmieniony na: %d\n", mode);
+    else if (strcmp(command, "setPatternByIndex") == 0) {
+        int index = params["index"] | -1;
+        if (index >= 0 && index < NUM_PATTERNS) {
+            Patterns.setPatternByIndex(index);
+        }
     }
-    else if (strcmp(command, "setPattern") == 0) {
-        uint32_t lineLen = params["lineLen"] | DEFAULT_LINE_LENGTH_MM;
-        uint32_t gapLen = params["gapLen"] | DEFAULT_GAP_LENGTH_MM;
-        Relays.setLineLength(lineLen);
-        Relays.setGapLength(gapLen);
-        DEBUG_PRINTF("[CMD] Wzor: linia=%d mm, przerwa=%d mm\n", lineLen, gapLen);
+    else if (strcmp(command, "setPatternByName") == 0) {
+        const char* name = params["name"];
+        if (name) {
+            Patterns.setPatternByName(name);
+        }
     }
     else if (strcmp(command, "togglePistol") == 0) {
         int id = params["id"] | -1;
@@ -313,6 +417,12 @@ void handleWebCommand(const char* command, JsonDocument& params) {
         int brightness = params["value"] | TFT_BL_DEFAULT;
         Display.setBrightness(brightness);
     }
+    else if (strcmp(command, "nextPattern") == 0) {
+        Patterns.nextPattern();
+    }
+    else if (strcmp(command, "prevPattern") == 0) {
+        Patterns.prevPattern();
+    }
     else {
         DEBUG_PRINTF("[CMD] Nieznana komenda: %s\n", command);
     }
@@ -324,16 +434,8 @@ void handleWebCommand(const char* command, JsonDocument& params) {
 
 void handleEncoderButton() {
     if (Encoder.wasButtonReleased()) {
-        DEBUG_PRINTLN(F("[BUTTON] Przycisk enkodera nacisniety"));
-
-        // Przełącz między ekranami
-        Display.nextScreen();
-
-        // Lub: Start/Stop malowania
-        // if (Relays.isRunning()) {
-        //     Relays.stop();
-        // } else {
-        //     Relays.start();
-        // }
+        DEBUG_PRINTLN(F("[BUTTON] Przycisk enkodera"));
+        // Przełącz następny wzorzec
+        Patterns.nextPattern();
     }
 }
