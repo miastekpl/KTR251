@@ -24,7 +24,9 @@
 #include "modules/display/display_module.h"
 #include "modules/webserver/webserver_module.h"
 #include "modules/patterns/patterns_module.h"
-#include "modules/keypad/keypad_module.h"
+// TYMCZASOWO WYŁĄCZONE - debug boot loop
+// #include "modules/keypad/keypad_module.h"
+#define KEYPAD_DISABLED 1
 
 // =============================================================================
 // ZMIENNE GLOBALNE
@@ -33,7 +35,9 @@
 uint32_t lastEncoderUpdate = 0;
 uint32_t lastDisplayUpdate = 0;
 uint32_t lastWebUpdate = 0;
+#ifndef KEYPAD_DISABLED
 uint32_t lastKeypadUpdate = 0;
+#endif
 
 bool systemInitialized = false;
 
@@ -45,10 +49,12 @@ void initializeSystem();
 void updateEncoder();
 void updateDisplay();
 void updateWeb();
+#ifndef KEYPAD_DISABLED
 void updateKeypad();
+void handleKeypadPress(KeyCode key);
+#endif
 void handleWebCommand(const char* command, JsonDocument& params);
 void handleEncoderButton();
-void handleKeypadPress(KeyCode key);
 void onPatternChange(PatternId newPattern, const PaintPattern* pattern);
 void applyPattern(const PaintPattern* pattern);
 
@@ -103,11 +109,13 @@ void loop() {
         lastEncoderUpdate = currentTime;
     }
 
+    #ifndef KEYPAD_DISABLED
     // Aktualizacja klawiatury (20ms)
     if (currentTime - lastKeypadUpdate >= KEYPAD_SCAN_INTERVAL) {
         updateKeypad();
         lastKeypadUpdate = currentTime;
     }
+    #endif
 
     // Aktualizacja wyświetlacza (100ms)
     if (currentTime - lastDisplayUpdate >= DISPLAY_UPDATE_INTERVAL) {
@@ -164,6 +172,7 @@ void initializeSystem() {
         return;
     }
 
+    #ifndef KEYPAD_DISABLED
     // 5. Klawiatura
     if (!Keypad.begin()) {
         DEBUG_PRINTLN(F("[SYSTEM] BLAD: Nie mozna zainicjalizowac klawiatury!"));
@@ -171,6 +180,9 @@ void initializeSystem() {
         return;
     }
     Keypad.setOnKeyPress(handleKeypadPress);
+    #else
+    DEBUG_PRINTLN(F("[SYSTEM] Klawiatura WYLACZONA (debug)"));
+    #endif
 
     // 6. Serwer WWW
     if (!WebServer.begin()) {
@@ -208,6 +220,7 @@ void updateEncoder() {
     Relays.update(Encoder.getDistanceMM());
 }
 
+#ifndef KEYPAD_DISABLED
 // =============================================================================
 // AKTUALIZACJA KLAWIATURY
 // =============================================================================
@@ -247,6 +260,7 @@ void handleKeypadPress(KeyCode key) {
         }
     }
 }
+#endif
 
 // =============================================================================
 // CALLBACK ZMIANY WZORCA
